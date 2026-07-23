@@ -61,7 +61,8 @@ Quatro fases, acompanhadas como milestones no GitHub. Detalhes em [ROADMAP.md](.
 ## Relacionados
 
 - [rag-reference-architecture](https://github.com/prodrigues2023/rag-reference-architecture) — RAG em cargas corporativas
-- [ai-solution-architecture-kit](https://github.com/prodrigues2023/ai-solution-architecture-kit) — artefatos de governança de arquitetura
+- [rag-evaluation-toolkit](https://github.com/prodrigues2023/rag-evaluation-toolkit) — como medir se um sistema RAG funciona: métricas, golden datasets, calibração do juiz
+- [ai-solution-architecture-kit](https://github.com/prodrigues2023/ai-solution-architecture-kit) — artefatos de governança de arquitetura: níveis de risco, certificação de modelos, checklists
 
 ## Autor
 
