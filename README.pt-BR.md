@@ -60,6 +60,8 @@ Quatro fases, acompanhadas como milestones no GitHub. Detalhes em [ROADMAP.md](.
 
 ## Relacionados
 
+- [iot-realtime-ingestion](https://github.com/prodrigues2023/iot-realtime-ingestion) — os mesmos padrões de mensageria na borda de ingestão de alto throughput: buffer durável, escritas idempotentes
+- [k8s-observability-stack](https://github.com/prodrigues2023/k8s-observability-stack) — o tracing que segue um evento através do broker, mais sinais de profundidade de fila e lag do consumidor
 - [rag-reference-architecture](https://github.com/prodrigues2023/rag-reference-architecture) — RAG em cargas corporativas
 - [rag-evaluation-toolkit](https://github.com/prodrigues2023/rag-evaluation-toolkit) — como medir se um sistema RAG funciona: métricas, golden datasets, calibração do juiz
 - [ai-solution-architecture-kit](https://github.com/prodrigues2023/ai-solution-architecture-kit) — artefatos de governança de arquitetura: níveis de risco, certificação de modelos, checklists
