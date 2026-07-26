@@ -101,9 +101,10 @@ envelope, event catalogue, and JSON Schemas are the **contracts** in
 [docs/message-contract.md](./docs/message-contract.md), [docs/event-catalogue.md](./docs/event-catalogue.md),
 and [contracts/schemas](./contracts/schemas).
 
-The one honest gap: the saga has **no timeout** yet — a fulfilment stuck awaiting an event that never
-comes waits forever. That scheduler is called out in [ADR-0007](./docs/adr/0007-saga-vs-process-manager.md)
-and the [failure catalogue](./docs/failure-catalogue.md).
+And it does not stall: a `SagaTimeoutMonitor` sweeps for sagas held in a waiting state past a deadline
+(`SAGA_TIMEOUT_SECONDS`, default 20) and fires compensation — cancel if unpaid, refund if paid — so a
+never-arriving outcome resolves instead of waiting forever ([ADR-0007](./docs/adr/0007-saga-vs-process-manager.md),
+[failure catalogue](./docs/failure-catalogue.md)).
 
 ## Resilience under failure
 

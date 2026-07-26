@@ -74,6 +74,13 @@ builder.Services.AddEventConsumer<OrderingDbContext>(c =>
     });
 });
 
+// Fire compensation for sagas that get stuck waiting for an event that never arrives (ADR-0007).
+var sagaTimeout = int.TryParse(Environment.GetEnvironmentVariable("SAGA_TIMEOUT_SECONDS"), out var st) ? st : 20;
+builder.Services.AddHostedService(sp => new SagaTimeoutMonitor(
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<SagaTimeoutMonitor>>(),
+    TimeSpan.FromSeconds(sagaTimeout)));
+
 var app = builder.Build();
 await Startup.MigrateAsync<OrderingDbContext>(app.Services);
 

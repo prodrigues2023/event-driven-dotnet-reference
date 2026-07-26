@@ -71,11 +71,9 @@ Ordering service.
 
 **Negative**
 
-- **The saga can stall, and this cut has no timeout.** A saga in `AwaitingShipment` waits forever if
-  neither `OrderShipped` nor `ShipmentFailed` ever arrives — a lost message the outbox should prevent,
-  but a dead consumer would cause. A production saga needs a deadline that fires a timeout and
-  compensates; that scheduler is deliberately out of scope here and is the sharpest edge in this
-  design.
+- **The saga could stall without a deadline.** A saga in `AwaitingShipment` would wait forever if
+  neither `OrderShipped` nor `ShipmentFailed` ever arrived — a lost message the outbox should prevent,
+  but a dead consumer would cause. See the update below: a timeout monitor now closes this.
 - **The coordinator is coupled to its participants' commands.** The saga knows `RefundPayment` exists
   and what it means. That coupling is the definition of orchestration and the price of having one
   place own the process; it is deliberate, but it is real.
@@ -85,3 +83,12 @@ Ordering service.
 - Compensation is *semantic*, not a rollback. A refunded payment and a cancelled order are new facts,
   not an erasure — the customer was charged and refunded, and both are visible. Saga compensation
   restores a consistent business state, it does not pretend the steps never happened.
+
+## Update (2026-07-26): timeout implemented
+
+The stall risk above is closed. A `SagaTimeoutMonitor` background service sweeps for sagas held in a
+waiting state past a deadline (`SAGA_TIMEOUT_SECONDS`, default 20) and fires the timeout: a saga stuck
+`AwaitingPayment` is cancelled (no money moved), and one stuck `AwaitingShipment` is **compensated** —
+the same `RefundPayment` command the shipment-failure path uses. Each timeout runs in its own
+transaction and re-checks the state, so it never races a real event to a double transition. The saga
+is now a bounded, self-healing process rather than one that can wait forever.

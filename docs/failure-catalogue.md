@@ -16,7 +16,8 @@ addressed by an ADR and demonstrated by the [chaos suite](../scripts/chaos.sh) (
 | **Business decline** | Payment over the limit | Not a failure — a valid outcome | `PaymentDeclined` event; the saga cancels the order | [ADR-0002](./adr/0002-messaging-topology.md) |
 | **Shipment failure after payment** | A completed step must be undone | `ShipmentFailed` event | The saga issues `RefundPayment`; the order ends compensated | [ADR-0007](./adr/0007-saga-vs-process-manager.md) |
 | **Stalled dispatcher** | The outbox stops draining | Undispatched row count and oldest-undispatched age rise | Alert on those two metrics; restart the producer — nothing is lost | [ADR-0003](./adr/0003-transactional-outbox.md) · [runbooks](./runbooks.md) |
-| **Stalled saga** | A saga waits for an event that never comes | *Not yet detected* | A production saga needs a timeout that fires compensation — deliberately out of scope in this cut | [ADR-0007](./adr/0007-saga-vs-process-manager.md) |
+| **Stalled saga** | A saga waits for an event that never comes | A sweep finds sagas held in a waiting state past a deadline | A timeout monitor fires compensation: cancel if unpaid, refund if paid | [ADR-0007](./adr/0007-saga-vs-process-manager.md) |
 
-The one open item — the saga timeout — is stated honestly rather than hidden: it is the sharpest edge
-in the current design, and the only failure here without an automatic response.
+Every failure mode above now has an automatic response. The saga timeout — the last open item — is
+handled by the `SagaTimeoutMonitor`; the remaining hardening (tuning deadlines per process, alerting
+on timeout rates) is operational, not a gap in the design.

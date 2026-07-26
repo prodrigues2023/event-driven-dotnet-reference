@@ -10,9 +10,11 @@ stateDiagram-v2
 
     AwaitingPayment --> AwaitingShipment : PaymentAuthorized
     AwaitingPayment --> Cancelled : PaymentDeclined
+    AwaitingPayment --> Cancelled : timeout (unpaid)
 
     AwaitingShipment --> Completed : OrderShipped
     AwaitingShipment --> Compensating : ShipmentFailed / send RefundPayment
+    AwaitingShipment --> Compensating : timeout / send RefundPayment
 
     Compensating --> Compensated : PaymentRefunded
 
@@ -39,8 +41,9 @@ stateDiagram-v2
 outbox and inbox as everything else, so it is delivered at-least-once and applied exactly once: a
 redelivered refund refunds once.
 
-## The gap: no timeout
+## Timeouts
 
-`AwaitingShipment` has no deadline in this cut. If neither `OrderShipped` nor `ShipmentFailed` ever
-arrives, the saga waits forever. A production saga schedules a timeout that fires compensation — the
-one piece deliberately out of scope, called out in [ADR-0007](../adr/0007-saga-vs-process-manager.md).
+A waiting state has a deadline (`SAGA_TIMEOUT_SECONDS`, default 20). A `SagaTimeoutMonitor` sweeps for
+sagas held past it and fires the timeout: `AwaitingPayment` is cancelled (nothing was charged), and
+`AwaitingShipment` is compensated with the same `RefundPayment` command as a shipment failure — so a
+never-arriving outcome does not strand a saga. See [ADR-0007](../adr/0007-saga-vs-process-manager.md).

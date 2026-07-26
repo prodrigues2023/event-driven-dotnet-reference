@@ -38,6 +38,7 @@ services:
       args: { PROJECT: Ordering }
     environment:
       DB_CONN: "Host=postgres;Port=5432;Username=postgres;Password=postgres;Database=ordering"
+      SAGA_TIMEOUT_SECONDS: "15"
       RABBIT_HOST: rabbitmq
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
