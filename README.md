@@ -50,6 +50,12 @@ make demo   # place orders and watch them flow: happy path, decline, poison/DLQ,
 make down   # stop everything
 ```
 
+Open **[localhost:8080](http://localhost:8080)** for a live console: place an order and watch it move
+across the three services, with each service's queue depth and dead-letter count read live from the
+broker. Below — a shipped order, two declines, and a malformed order dead-lettered (Payments `DLQ 1`).
+
+![The event-driven console — the Ordering → Payments → Shipping flow, per-order stage trackers, and live queue/DLQ depths](./docs/images/console-order-flow.png)
+
 `make demo` exercises the reliability spine end to end:
 
 - an order flows **Placed → Paid → Shipped** across three services, carried only by events;
@@ -59,7 +65,7 @@ make down   # stop everything
 
 | Project | Role |
 | --- | --- |
-| [`Ordering`](./src/Ordering) | API. Writes the order and `OrderPlaced` in one transaction (the outbox), and tracks status |
+| [`Ordering`](./src/Ordering) | API + live console. Writes the order and `OrderPlaced` in one transaction (the outbox), and tracks status |
 | [`Payments`](./src/Payments) | Idempotent consumer. Authorizes or declines; a malformed order is a poison message |
 | [`Shipping`](./src/Shipping) | Idempotent consumer. Ships an authorized order and emits `OrderShipped` |
 | [`EventDriven.Messaging`](./src/EventDriven.Messaging) | The reusable spine: outbox dispatcher, inbox dedup, topology, three-layer retry / DLQ |

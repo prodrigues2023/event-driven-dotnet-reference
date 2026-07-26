@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order fulfilment — event-driven console</title>
+<style>
+  :root{
+    --bg:0 0% 100%;--fg:240 10% 3.9%;--card:0 0% 100%;--muted:240 4.8% 95.9%;--mfg:240 3.8% 46.1%;
+    --primary:240 5.9% 10%;--pfg:0 0% 98%;--border:240 5.9% 90%;--input:240 5.9% 90%;--ring:240 10% 3.9%;
+    --green:142 71% 36%;--green-bg:142 71% 95%;--amber:35 92% 42%;--amber-bg:38 92% 95%;
+    --red:0 72% 46%;--red-bg:0 72% 96%;--brand:#3B4CC4;
+    --radius:0.625rem;--font-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    --font-mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:240 10% 3.9%;--fg:0 0% 98%;--card:240 6% 10%;--muted:240 3.7% 15.9%;--mfg:240 5% 64.9%;
+    --primary:0 0% 98%;--pfg:240 5.9% 10%;--border:240 3.7% 16.9%;--input:240 3.7% 18%;--ring:240 4.9% 83.9%;
+    --green:142 60% 52%;--green-bg:142 45% 13%;--amber:38 92% 56%;--amber-bg:38 60% 13%;
+    --red:0 72% 62%;--red-bg:0 55% 14%;--brand:#8B97F0;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:hsl(var(--bg));color:hsl(var(--fg));font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px clamp(14px,3vw,26px) 60px}
+  code{font-family:var(--font-mono);font-size:.86em}
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:4px}
+  .logo{width:30px;height:30px;border-radius:calc(var(--radius) - 3px);background:hsl(var(--primary));color:hsl(var(--pfg));display:grid;place-items:center;font-weight:700;font-size:15px}
+  .brand h1{font-size:15px;font-weight:600;margin:0}.brand .sub{color:hsl(var(--mfg));font-weight:400}
+  .live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:hsl(var(--mfg))}
+  .live .dot{width:7px;height:7px;border-radius:50%;background:hsl(var(--green));animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .lede{color:hsl(var(--mfg));font-size:13px;margin:8px 0 22px;max-width:90ch}
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius)}
+  .chd{padding:14px 16px 0}.chd .t{font-size:14px;font-weight:600}.chd .s{font-size:12px;color:hsl(var(--mfg));margin-top:2px}
+
+  form{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:14px 16px 16px}
+  input{font-family:inherit;font-size:13px;color:hsl(var(--fg));background:hsl(var(--card));border:1px solid hsl(var(--input));border-radius:calc(var(--radius) - 3px);padding:8px 11px;height:36px}
+  input#cust{min-width:190px}input#amt{width:120px}
+  .btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 15px;border-radius:calc(var(--radius) - 2px);background:hsl(var(--primary));color:hsl(var(--pfg));border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer}
+  .btn.ghost{background:transparent;color:hsl(var(--fg));border-color:hsl(var(--border))}
+  .btn.ghost:hover{background:hsl(var(--muted))}
+  .btn.xs{height:28px;padding:0 10px;font-size:12px}
+  .hint{font-size:12px;color:hsl(var(--mfg));margin-left:4px}
+  .quick{display:flex;gap:6px;flex-wrap:wrap}
+
+  .flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:stretch;gap:0;padding:16px}
+  .node{border:1px solid hsl(var(--border));border-radius:calc(var(--radius) - 2px);padding:13px 14px;background:hsl(var(--muted)/.35)}
+  .node .n{font-weight:600;font-size:13.5px}.node .r{font-size:11.5px;color:hsl(var(--mfg));margin:2px 0 9px}
+  .node .stats{display:flex;gap:6px;flex-wrap:wrap}
+  .arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px;min-width:96px}
+  .arrow .ex{font-family:var(--font-mono);font-size:10.5px;color:hsl(var(--mfg));margin-bottom:3px;text-align:center}
+  .arrow .line{width:100%;height:2px;background:hsl(var(--border));position:relative}
+  .arrow .line::after{content:"";position:absolute;right:-1px;top:-3px;border-left:7px solid hsl(var(--border));border-top:4px solid transparent;border-bottom:4px solid transparent}
+  .arrow.active .line,.arrow.active .line::after{background:var(--brand);border-left-color:var(--brand)}
+  .tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+  .tag{font-family:var(--font-mono);font-size:10.5px;color:hsl(var(--mfg));border:1px solid hsl(var(--border));border-radius:999px;padding:1px 7px}
+
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600}
+  .chip .d{width:6px;height:6px;border-radius:50%}
+  .chip.q{background:hsl(var(--muted));color:hsl(var(--mfg))}
+  .chip.dlq{background:hsl(var(--red-bg));color:hsl(var(--red))}.chip.dlq .d{background:hsl(var(--red))}
+  .chip.dlq.zero{background:hsl(var(--muted));color:hsl(var(--mfg))}.chip.dlq.zero .d{background:hsl(var(--mfg))}
+
+  .orders{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+  .order{display:grid;grid-template-columns:220px 1fr auto;align-items:center;gap:14px;padding:12px 15px}
+  .who{min-width:0}.who .c{font-weight:600;font-size:13.5px}.who .m{font-size:12px;color:hsl(var(--mfg));font-family:var(--font-mono)}
+  .track{display:flex;align-items:center;gap:0}
+  .step{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:74px}
+  .bead{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;border:2px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--mfg))}
+  .step .lb{font-size:11px;color:hsl(var(--mfg))}
+  .step.done .bead{background:hsl(var(--green-bg));border-color:hsl(var(--green));color:hsl(var(--green))}
+  .step.done .lb{color:hsl(var(--green))}
+  .step.fail .bead{background:hsl(var(--red-bg));border-color:hsl(var(--red));color:hsl(var(--red))}
+  .step.fail .lb{color:hsl(var(--red))}
+  .step.now .bead{border-color:var(--brand);color:var(--brand);animation:pulse 1.4s infinite}
+  .seg{width:34px;height:2px;background:hsl(var(--border));margin-top:-16px}
+  .seg.done{background:hsl(var(--green))}
+  .right{display:flex;align-items:center;gap:9px;justify-content:flex-end}
+  .status{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:650}
+  .s-Placed{background:hsl(var(--amber-bg));color:hsl(var(--amber))}
+  .s-Paid{background:hsl(var(--muted));color:hsl(var(--fg))}
+  .s-Shipped{background:hsl(var(--green-bg));color:hsl(var(--green))}
+  .s-PaymentFailed{background:hsl(var(--red-bg));color:hsl(var(--red))}
+  .poison{background:hsl(var(--red-bg));color:hsl(var(--red))}
+  .empty{padding:34px;text-align:center;color:hsl(var(--mfg));font-size:13px}
+  footer{margin-top:22px;font-size:12px;color:hsl(var(--mfg))}
+  @media(max-width:820px){.flow{grid-template-columns:1fr}.arrow{flex-direction:row;min-width:0;padding:8px 0}.arrow .line{width:60px}.order{grid-template-columns:1fr;gap:10px}.track{overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <span class="logo">↯</span>
+    <h1>Order fulfilment <span class="sub">/ event-driven console</span></h1>
+    <span class="live"><span class="dot"></span> live · localhost:8080</span>
+  </div>
+  <p class="lede">Place an order and watch it move across three services by events alone —
+    <b>Ordering → Payments → Shipping</b>. No service calls another directly; each reacts to an event and
+    emits the next. Failures are visible, not lost: over-limit orders are declined, malformed ones are dead-lettered.</p>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="chd"><div class="t">Place an order</div>
+      <div class="s"><code>amount ≤ 0</code> → poison (dead-lettered) · <code>&gt; 5000</code> → declined · otherwise authorized &amp; shipped</div></div>
+    <form id="form">
+      <input id="cust" placeholder="Customer name" autocomplete="off" value="Ana Silva">
+      <input id="amt" type="number" step="0.01" placeholder="Amount" value="250">
+      <button class="btn" type="submit">Place order</button>
+      <span class="quick">
+        <button class="btn ghost xs" type="button" data-amt="250">happy 250</button>
+        <button class="btn ghost xs" type="button" data-amt="9000">decline 9000</button>
+        <button class="btn ghost xs" type="button" data-amt="0">poison 0</button>
+      </span>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="chd"><div class="t">Event flow</div><div class="s">Queue depth in flight and dead-letter count, live from the broker</div></div>
+    <div class="flow" id="flow"></div>
+  </div>
+
+  <div class="card">
+    <div class="chd"><div class="t">Orders</div><div class="s">Each order advances Placed → Paid → Shipped as the events land</div></div>
+    <div class="orders" id="orders"><div class="empty">Loading…</div></div>
+  </div>
+
+  <footer>Reading <code>GET /orders</code> and <code>GET /system/queues</code>. RabbitMQ UI: <code>localhost:15672</code> (guest/guest).</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const j=async u=>{const r=await fetch(u);if(!r.ok)throw new Error(u+' '+r.status);return r.json();};
+
+async function place(customer,amount){
+  await fetch('/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer,amount})});
+  tick();
+}
+$('#form').onsubmit=e=>{e.preventDefault();const c=$('#cust').value.trim()||'Customer';place(c,parseFloat($('#amt').value||'0'));};
+document.querySelectorAll('.quick [data-amt]').forEach(b=>b.onclick=()=>{$('#amt').value=b.dataset.amt;place($('#cust').value.trim()||'Customer',parseFloat(b.dataset.amt));});
+async function replay(id){await fetch('/orders/'+id+'/replay',{method:'POST'});tick();}
+
+function qmap(qs){const m={};for(const q of qs)m[q.name]=q.messages;return m;}
+function svc(m,work){const dlq=m[work+'.dlq']||0;let retry=0;for(const k in m)if(k.startsWith(work+'.retry'))retry+=m[k];return{inq:m[work]||0,dlq,retry};}
+
+function flowNode(name,role,s,tags){
+  const dlqCls=s.dlq>0?'chip dlq':'chip dlq zero';
+  return `<div class="node"><div class="n">${name}</div><div class="r">${role}</div>
+    <div class="stats"><span class="chip q">queue ${s.inq}</span>
+      <span class="${dlqCls}"><span class="d"></span> DLQ ${s.dlq}</span></div>
+    <div class="tags">${tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>`;
+}
+function arrow(ex,active){return `<div class="arrow ${active?'active':''}"><span class="ex">${ex}</span><span class="line"></span></div>`;}
+
+function renderFlow(qs){
+  const m=qmap(qs);
+  const pay=svc(m,'payments.ordering.events'), shp=svc(m,'shipping.payments.events'), ord=svc(m,'ordering.inbox');
+  $('#flow').innerHTML=
+    flowNode('Ordering','publishes OrderPlaced',ord,['outbox'])+
+    arrow('ordering.events',pay.inq>0)+
+    flowNode('Payments','authorizes / declines',pay,['inbox','retry','dlq'])+
+    arrow('payments.events',shp.inq>0)+
+    flowNode('Shipping','ships the order',shp,['inbox','dlq']);
+}
+
+function step(label,state){ // state: done|fail|now|todo
+  const icon=state==='done'?'✓':state==='fail'?'✗':state==='now'?'•':'';
+  return `<div class="step ${state}"><div class="bead">${icon}</div><div class="lb">${label}</div></div>`;
+}
+function tracker(o){
+  const poison=o.amount<=0;
+  let placed='done',paid='todo',ship='todo';
+  if(o.status==='Paid'){paid='done';ship='now';}
+  else if(o.status==='Shipped'){paid='done';ship='done';}
+  else if(o.status==='PaymentFailed'){paid='fail';ship='todo';}
+  else {paid=poison?'fail':'now';} // Placed
+  const seg1=paid==='done'?'seg done':'seg', seg2=ship==='done'?'seg done':'seg';
+  return `<div class="track">${step('Placed',placed)}<div class="${seg1}"></div>${step('Paid',paid)}<div class="${seg2}"></div>${step('Shipped',ship)}</div>`;
+}
+function statusBadge(o){
+  if(o.amount<=0 && o.status==='Placed') return '<span class="status poison">dead-lettered</span>';
+  return `<span class="status s-${esc(o.status)}">${esc(o.status)}</span>`;
+}
+function renderOrders(list){
+  if(!list.length){$('#orders').innerHTML='<div class="empty">No orders yet — place one above.</div>';return;}
+  $('#orders').innerHTML=list.map(o=>`<div class="order">
+    <div class="who"><div class="c">${esc(o.customer)}</div>
+      <div class="m">$${Number(o.amount).toFixed(2)} · ${o.id.slice(0,8)}${o.trackingNumber?' · '+esc(o.trackingNumber):''}</div></div>
+    ${tracker(o)}
+    <div class="right">${statusBadge(o)}<button class="btn ghost xs" onclick="replay('${o.id}')">Replay</button></div>
+  </div>`).join('');
+}
+
+async function tick(){
+  try{
+    const [orders,queues]=await Promise.all([j('/orders'),j('/system/queues')]);
+    renderOrders(orders); renderFlow(queues);
+  }catch(e){ /* transient */ }
+}
+window.replay=replay;
+tick(); setInterval(tick,1200);
+</script>
+</body>
+</html>

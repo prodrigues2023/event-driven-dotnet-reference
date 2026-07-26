@@ -1,9 +1,13 @@
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using EventDriven.Contracts;
 using EventDriven.Messaging;
 using Microsoft.EntityFrameworkCore;
 using Ordering;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHttpClient();
 
 var dbConn = Environment.GetEnvironmentVariable("DB_CONN")
     ?? "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=ordering";
@@ -47,7 +51,43 @@ builder.Services.AddEventConsumer<OrderingDbContext>(c =>
 var app = builder.Build();
 await Startup.MigrateAsync<OrderingDbContext>(app.Services);
 
+// Serve the live process console at / (wwwroot), same origin as the API.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+// Broker queue depths (work + retry + DLQ), read from the RabbitMQ management API server-side
+// so the browser console can show them without CORS.
+app.MapGet("/system/queues", async (IHttpClientFactory httpFactory) =>
+{
+    var host = Environment.GetEnvironmentVariable("RABBIT_HOST") ?? "localhost";
+    var user = Environment.GetEnvironmentVariable("RABBIT_USER") ?? "guest";
+    var pass = Environment.GetEnvironmentVariable("RABBIT_PASS") ?? "guest";
+    var http = httpFactory.CreateClient();
+    http.Timeout = TimeSpan.FromSeconds(3);
+    var req = new HttpRequestMessage(HttpMethod.Get, $"http://{host}:15672/api/queues/%2F");
+    req.Headers.Authorization = new AuthenticationHeaderValue(
+        "Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{pass}")));
+    try
+    {
+        using var resp = await http.SendAsync(req);
+        if (!resp.IsSuccessStatusCode) return Results.Ok(Array.Empty<object>());
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var prefixes = new[] { "ordering.inbox", "payments.ordering.events", "shipping.payments.events" };
+        var list = doc.RootElement.EnumerateArray()
+            .Select(q => new
+            {
+                name = q.GetProperty("name").GetString() ?? "",
+                messages = q.TryGetProperty("messages", out var m) && m.TryGetInt32(out var v) ? v : 0
+            })
+            .Where(q => prefixes.Any(p => q.name.StartsWith(p)))
+            .OrderBy(q => q.name)
+            .ToList();
+        return Results.Ok(list);
+    }
+    catch { return Results.Ok(Array.Empty<object>()); }
+});
 
 app.MapPost("/orders", async (PlaceOrder req, OrderingDbContext db, OutboxWriter outbox) =>
 {
