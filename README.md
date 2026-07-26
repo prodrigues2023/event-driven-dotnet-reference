@@ -28,7 +28,8 @@ reference implementation on top of them.
 | C4 diagrams and message flows | Done | [docs/diagrams](./docs/diagrams) |
 | Architecture Decision Records | 5 published | [docs/adr](./docs/adr) |
 | Quality attributes & trade-offs | Done | [docs/quality-attributes.md](./docs/quality-attributes.md) |
-| Reliability spine (outbox, inbox, retry/DLQ) | In progress — Phase 3 | [Run it locally](#run-it-locally) · [src](./src) |
+| Reliability spine (outbox, inbox, retry/DLQ) | Done — Phase 3 | [Run it locally](#run-it-locally) · [src](./src) |
+| Chaos suite & runbooks (resilience) | Done — Phase 4 | [Resilience](#resilience-under-failure) · [chaos.sh](./scripts/chaos.sh) · [runbooks](./docs/runbooks.md) |
 
 ## The four problems this architecture solves
 
@@ -75,7 +76,38 @@ No framework hides the pattern — the outbox, inbox, and retry ladder are writt
 it. The RabbitMQ management UI is at [localhost:15672](http://localhost:15672) (guest / guest).
 
 Deferred to keep this first cut coherent: the **saga host with compensation** (it depends on
-ADR-0007, a Milestone 2 decision) and **CI + Testcontainers + chaos** (Milestone 4).
+ADR-0007, a Milestone 2 decision).
+
+## Resilience under failure
+
+The guarantees are only worth stating if they hold when things break. `make chaos` kills each moving
+part while orders are in flight and asserts nothing is lost and the effect is exactly-once — one
+command, one results table:
+
+```
+scenario                             placed   terminal   lost   verdict
+----------------------------------------------------------------------------
+baseline                                 10         10      0   PASS
+kill broker (+place while down)          14         14      0   PASS
+kill consumer                            10         10      0   PASS
+kill database                            10         10      0   PASS
+duplicate delivery (replay x3)            1  1 payment          PASS
+poison -> DLQ (order stays Placed)        1   DLQ 5->6          PASS
+exactly-once (no duplicate effects)                              PASS
+```
+
+- **Kill the broker** — orders placed *while it is down* wait durably in the outbox and flow once it
+  returns ([ADR-0003](./docs/adr/0003-transactional-outbox.md)); unacked messages are redelivered and
+  deduplicated.
+- **Kill a consumer** — its durable queue holds the backlog; it drains on restart.
+- **Kill the database** — in-flight transactions fail transiently and retry; no partial effects.
+- **Exactly-once** is checked globally: one payment and one shipment per order, no duplicates, across
+  every failure above ([ADR-0004](./docs/adr/0004-idempotent-consumers.md)).
+
+Operating it is documented too: [runbooks](./docs/runbooks.md) for DLQ triage, replay, and backlog
+recovery. Distributed tracing and a published load test are the remaining Milestone 4 items —
+tracing across the broker is the subject of the
+[k8s-observability-stack](https://github.com/prodrigues2023/k8s-observability-stack).
 
 ## Why documented first
 

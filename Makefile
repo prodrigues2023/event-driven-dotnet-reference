@@ -1,6 +1,6 @@
 # Event-driven .NET reference — local environment.
 
-.PHONY: up down logs demo build ps
+.PHONY: up down logs demo chaos build ps
 
 ## up: build and start RabbitMQ, PostgreSQL, and the three services
 up:
@@ -22,6 +22,10 @@ logs:
 ## demo: place orders and watch them flow — happy path, decline, poison/DLQ, replay/idempotency
 demo:
 	./scripts/demo.sh
+
+## chaos: kill broker/consumer/database mid-flight and assert no loss + exactly-once (Milestone 4)
+chaos:
+	./scripts/chaos.sh
 
 ## ps: show container status
 ps:

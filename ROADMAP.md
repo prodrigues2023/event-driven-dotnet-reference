@@ -76,13 +76,19 @@ services reacting to events; the dedicated saga host is deferred until its ADR i
 
 **Goal:** prove the guarantees hold when things break.
 
-| Issue | Deliverable |
-| --- | --- |
-| Chaos suite | Kill the broker, the consumer, and the database mid-transaction; assert no loss |
-| Duplicate delivery test | Force redelivery, assert exactly-once effect |
-| Poison message test | Assert dead-lettering with full diagnostic context |
-| Observability | Distributed tracing across the broker; queue depth and consumer lag dashboards |
-| Load test | Sustained throughput with latency percentiles, published |
-| Runbooks | DLQ triage, replay procedure, backlog recovery |
+| Issue | Deliverable | Status |
+| --- | --- | --- |
+| Chaos suite | Kill the broker, the consumer, and the database mid-transaction; assert no loss | Done — [`scripts/chaos.sh`](./scripts/chaos.sh) (`make chaos`) |
+| Duplicate delivery test | Force redelivery, assert exactly-once effect | Done — chaos suite |
+| Poison message test | Assert dead-lettering with full diagnostic context | Done — chaos suite |
+| Runbooks | DLQ triage, replay procedure, backlog recovery | Done — [docs/runbooks.md](./docs/runbooks.md) |
+| Observability | Distributed tracing across the broker; queue depth and consumer lag dashboards | Deferred — queue depths in the console; tracing lives in [k8s-observability-stack](https://github.com/prodrigues2023/k8s-observability-stack) |
+| Load test | Sustained throughput with latency percentiles, published | Deferred |
 
-**Exit criteria:** published results table, reproducible with one command.
+**Exit criteria:** published results table, reproducible with one command. **Met** — `make chaos`.
+
+The chaos suite kills the broker, a consumer, and the database while orders are in flight (and even
+places orders while the broker is down, exercising outbox durability) and asserts every order reaches
+a terminal state with **no loss**, plus a global **exactly-once** check (one payment and one shipment
+per order). Duplicate-delivery and poison-message assertions run in the same suite. Distributed tracing
+and a published load test remain.
