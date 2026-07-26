@@ -17,6 +17,7 @@ public class OutboxMessage
     public string Body { get; set; } = "";    // JSON payload
     public Guid CorrelationId { get; set; }
     public Guid? CausationId { get; set; }
+    public string? TraceParent { get; set; }   // W3C trace context captured at creation (distributed tracing)
     public DateTime OccurredAt { get; set; }
     public DateTime? DispatchedAt { get; set; }
 }

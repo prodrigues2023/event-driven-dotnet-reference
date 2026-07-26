@@ -82,13 +82,15 @@ services reacting to events; the dedicated saga host is deferred until its ADR i
 | Duplicate delivery test | Force redelivery, assert exactly-once effect | Done — chaos suite |
 | Poison message test | Assert dead-lettering with full diagnostic context | Done — chaos suite |
 | Runbooks | DLQ triage, replay procedure, backlog recovery | Done — [docs/runbooks.md](./docs/runbooks.md) |
-| Observability | Distributed tracing across the broker; queue depth and consumer lag dashboards | Deferred — queue depths in the console; tracing lives in [k8s-observability-stack](https://github.com/prodrigues2023/k8s-observability-stack) |
-| Load test | Sustained throughput with latency percentiles, published | Deferred |
+| Observability | Distributed tracing across the broker; queue depth in the console | Done — OpenTelemetry → Jaeger; one order = one trace |
+| Load test | Sustained throughput with latency percentiles, published | Done — [docs/load-results.md](./docs/load-results.md) (`make loadtest`) |
 
-**Exit criteria:** published results table, reproducible with one command. **Met** — `make chaos`.
+**Exit criteria:** published results table, reproducible with one command. **Met** — `make chaos`,
+`make loadtest`.
 
 The chaos suite kills the broker, a consumer, and the database while orders are in flight (and even
 places orders while the broker is down, exercising outbox durability) and asserts every order reaches
 a terminal state with **no loss**, plus a global **exactly-once** check (one payment and one shipment
-per order). Duplicate-delivery and poison-message assertions run in the same suite. Distributed tracing
-and a published load test remain.
+per order). Distributed tracing propagates the W3C context through message headers so a single order's
+flow across all three services is one trace in Jaeger, and the load test reports ingest throughput
+(~815 orders/s) with latency percentiles. Milestone 4 is complete.

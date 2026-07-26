@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,6 +67,16 @@ public sealed class OutboxDispatcher<TContext>(
 
         foreach (var m in batch)
         {
+            var parent = m.TraceParent is not null && ActivityContext.TryParse(m.TraceParent, null, out var pc)
+                ? pc : default;
+            using var act = Telemetry.Source.StartActivity($"publish {m.RoutingKey}", ActivityKind.Producer, parent);
+            act?.SetTag("messaging.system", "rabbitmq");
+            act?.SetTag("messaging.destination.name", m.Exchange);
+            act?.SetTag("messaging.message.id", m.Id.ToString());
+
+            // The consumer becomes a child of this publish span; fall back to the stored context.
+            var traceParent = act?.Id ?? m.TraceParent;
+
             var props = new BasicProperties
             {
                 Persistent = true,
@@ -76,7 +87,8 @@ public sealed class OutboxDispatcher<TContext>(
                 Headers = new Dictionary<string, object?>
                 {
                     ["x-causation-id"] = m.CausationId?.ToString(),
-                    ["x-occurred-at"] = m.OccurredAt.ToString("O")
+                    ["x-occurred-at"] = m.OccurredAt.ToString("O"),
+                    ["traceparent"] = traceParent
                 }
             };
 

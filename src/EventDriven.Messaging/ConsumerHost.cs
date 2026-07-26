@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,6 +100,13 @@ public sealed class ConsumerHost<TContext>(
             return;
         }
 
+        var tp = TryGetString(ea.BasicProperties.Headers, "traceparent");
+        var parent = tp is not null && ActivityContext.TryParse(tp, null, out var pc) ? pc : default;
+        using var act = Telemetry.Source.StartActivity($"consume {env.Type}", ActivityKind.Consumer, parent);
+        act?.SetTag("messaging.system", "rabbitmq");
+        act?.SetTag("messaging.destination.name", config.QueueName);
+        act?.SetTag("messaging.message.id", env.MessageId.ToString());
+
         try
         {
             await HandleWithInProcessRetryAsync(env, ct);
@@ -107,11 +115,13 @@ public sealed class ConsumerHost<TContext>(
         catch (PoisonMessageException ex)
         {
             log.LogWarning("Poison message {Id} ({Type}): {Reason}", env.MessageId, env.Type, ex.Message);
+            act?.SetStatus(ActivityStatusCode.Error, "poison");
             await DeadLetterAsync(ea, "permanent", ex);
             await _consume.BasicAckAsync(ea.DeliveryTag, multiple: false, ct);
         }
         catch (Exception ex)
         {
+            act?.SetStatus(ActivityStatusCode.Error, ex.Message);
             var attempt = ReadAttempt(ea);
             if (attempt < _o.RetryDelaysSeconds.Length)
             {

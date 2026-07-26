@@ -29,7 +29,7 @@ reference implementation on top of them.
 | Architecture Decision Records | 5 published | [docs/adr](./docs/adr) |
 | Quality attributes & trade-offs | Done | [docs/quality-attributes.md](./docs/quality-attributes.md) |
 | Reliability spine (outbox, inbox, retry/DLQ) | Done — Phase 3 | [Run it locally](#run-it-locally) · [src](./src) |
-| Chaos suite & runbooks (resilience) | Done — Phase 4 | [Resilience](#resilience-under-failure) · [chaos.sh](./scripts/chaos.sh) · [runbooks](./docs/runbooks.md) |
+| Resilience & operations (chaos, tracing, load) | Done — Phase 4 | [Resilience](#resilience-under-failure) · [Observability](#observability-and-performance) · [runbooks](./docs/runbooks.md) |
 
 ## The four problems this architecture solves
 
@@ -46,9 +46,11 @@ reference implementation on top of them.
 on start.
 
 ```bash
-make up     # RabbitMQ + PostgreSQL + Ordering (API :8080) + Payments + Shipping
-make demo   # place orders and watch them flow: happy path, decline, poison/DLQ, replay
-make down   # stop everything
+make up        # RabbitMQ + PostgreSQL + Jaeger + Ordering (API :8080) + Payments + Shipping
+make demo      # place orders and watch them flow: happy path, decline, poison/DLQ, replay
+make chaos     # kill broker/consumer/database mid-flight; assert no loss + exactly-once
+make loadtest  # ingest throughput and latency percentiles
+make down      # stop everything
 ```
 
 Open **[localhost:8080](http://localhost:8080)** for a live console: place an order and watch it move
@@ -105,9 +107,27 @@ exactly-once (no duplicate effects)                              PASS
   every failure above ([ADR-0004](./docs/adr/0004-idempotent-consumers.md)).
 
 Operating it is documented too: [runbooks](./docs/runbooks.md) for DLQ triage, replay, and backlog
-recovery. Distributed tracing and a published load test are the remaining Milestone 4 items —
-tracing across the broker is the subject of the
-[k8s-observability-stack](https://github.com/prodrigues2023/k8s-observability-stack).
+recovery.
+
+## Observability and performance
+
+**One order is one trace, across the broker.** Every service is instrumented with OpenTelemetry; the
+W3C trace context rides in each message's `traceparent` header, so an order's whole journey —
+`POST /orders → publish → Payments consume → publish → Shipping consume → publish → Ordering updates
+status` — is a single distributed trace. `make up` starts Jaeger; open [localhost:16686](http://localhost:16686).
+
+![A single order as one distributed trace across Ordering, Payments, and Shipping — the gaps between hops are the outbox poll interval](./docs/images/trace-order-flow.png)
+
+**Performance** (`make loadtest`) separates the two things that matter in an async system — ingest is
+fast because the outbox decouples it from the broker; end-to-end is the full three-hop journey:
+
+| Metric | Value |
+| --- | --- |
+| Ingest throughput | **815 orders/s** (500 orders, 0 failed) |
+| POST latency | p50 22 ms · p95 138 ms · p99 237 ms |
+| End-to-end (place → shipped) | p50 ~1 s steady; higher under burst as backlog drains |
+
+Full method and numbers in [docs/load-results.md](./docs/load-results.md).
 
 ## Why documented first
 

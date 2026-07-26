@@ -18,6 +18,7 @@ builder.Services.AddEventDrivenMessaging(o =>
     o.Host = Environment.GetEnvironmentVariable("RABBIT_HOST") ?? "localhost";
     o.EventExchange = Exchanges.Ordering;
 });
+builder.Services.AddEventDrivenTelemetry("ordering", aspNetCore: true);
 builder.Services.AddOutboxWriter<OrderingDbContext>();
 builder.Services.AddOutboxDispatcher<OrderingDbContext>();
 

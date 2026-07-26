@@ -16,6 +16,7 @@ builder.Services.AddEventDrivenMessaging(o =>
     o.Host = Environment.GetEnvironmentVariable("RABBIT_HOST") ?? "localhost";
     o.EventExchange = Exchanges.Shipping;
 });
+builder.Services.AddEventDrivenTelemetry("shipping");
 builder.Services.AddOutboxDispatcher<ShippingDbContext>();
 
 builder.Services.AddEventConsumer<ShippingDbContext>(c =>

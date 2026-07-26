@@ -1,6 +1,6 @@
 # Event-driven .NET reference — local environment.
 
-.PHONY: up down logs demo chaos build ps
+.PHONY: up down logs demo chaos loadtest build ps
 
 ## up: build and start RabbitMQ, PostgreSQL, and the three services
 up:
@@ -26,6 +26,10 @@ demo:
 ## chaos: kill broker/consumer/database mid-flight and assert no loss + exactly-once (Milestone 4)
 chaos:
 	./scripts/chaos.sh
+
+## loadtest: measure ingest throughput/latency and end-to-end latency (override N=... C=...)
+loadtest:
+	dotnet run --project tools/LoadTest -c Release -- --orders $(or $(N),500) --concurrency $(or $(C),32)
 
 ## ps: show container status
 ps:

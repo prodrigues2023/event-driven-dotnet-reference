@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace EventDriven.Messaging;
@@ -20,6 +21,7 @@ public sealed class OutboxWriter(IMessagingDbContext db, string eventExchange)
             Body = JsonSerializer.Serialize(payload),
             CorrelationId = causedBy?.CorrelationId ?? Guid.NewGuid(),
             CausationId = causedBy?.MessageId,
+            TraceParent = Activity.Current?.Id, // captures the current trace context to propagate downstream
             OccurredAt = DateTime.UtcNow
         });
     }

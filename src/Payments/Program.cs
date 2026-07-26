@@ -16,6 +16,7 @@ builder.Services.AddEventDrivenMessaging(o =>
     o.Host = Environment.GetEnvironmentVariable("RABBIT_HOST") ?? "localhost";
     o.EventExchange = Exchanges.Payments;
 });
+builder.Services.AddEventDrivenTelemetry("payments");
 builder.Services.AddOutboxDispatcher<PaymentsDbContext>();
 
 builder.Services.AddEventConsumer<PaymentsDbContext>(c =>
