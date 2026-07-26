@@ -51,18 +51,24 @@ and interoperate.
 
 **Goal:** `docker compose up` and the whole thing runs on a laptop.
 
-| Issue | Deliverable |
-| --- | --- |
-| Order service | Publishes through the transactional outbox |
-| Outbox dispatcher | Polling publisher with ordering and backoff |
-| Payment and shipping consumers | Idempotent handlers with an inbox |
-| Saga host | Order fulfilment saga with compensation |
-| Local environment | Docker Compose: services, RabbitMQ, PostgreSQL, observability |
-| CI | Build, analysers, unit and integration tests on every pull request |
-| Integration tests | Testcontainers against a real broker, not a mock |
+| Issue | Deliverable | Status |
+| --- | --- | --- |
+| Order service | Publishes through the transactional outbox | Done — [`Ordering`](./src/Ordering) |
+| Outbox dispatcher | Polling publisher with ordering and backoff | Done — [`OutboxDispatcher`](./src/EventDriven.Messaging/OutboxDispatcher.cs) |
+| Payment and shipping consumers | Idempotent handlers with an inbox | Done — [`Payments`](./src/Payments), [`Shipping`](./src/Shipping) |
+| Retry and dead-lettering | Three-layer strategy, delay queues, DLQ | Done — [`ConsumerHost`](./src/EventDriven.Messaging/ConsumerHost.cs) |
+| Local environment | Docker Compose: services, RabbitMQ, PostgreSQL | Done — `make up` |
+| Saga host | Order fulfilment saga with compensation | Deferred — needs ADR-0007 (Milestone 2) |
+| CI | Build, analysers, unit and integration tests on every pull request | Deferred — Milestone 4 |
+| Integration tests | Testcontainers against a real broker, not a mock | Deferred — Milestone 4 |
 
 **Exit criteria:** a first-time reader places an order and watches it flow end to end in
-under five minutes.
+under five minutes. **Met** — `make up && make demo`.
+
+The reliability spine is delivered: an order flows Placed → Paid → Shipped by events, an over-limit
+order is declined, a malformed order is dead-lettered, and a replayed message is deduplicated by the
+inbox (exactly-once effect). The **saga** (orchestrated compensation) is choreographed here as
+services reacting to events; the dedicated saga host is deferred until its ADR is written.
 
 ---
 
