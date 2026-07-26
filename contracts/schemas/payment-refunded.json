@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prodrigues2023.github.io/event-driven-dotnet-reference/schemas/payment-refunded.json",
+  "title": "PaymentRefunded",
+  "description": "A payment was refunded as saga compensation. Published by Payments to payments.events with routing key payment.refunded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["orderId", "paymentId", "amount"],
+  "properties": {
+    "orderId": { "type": "string", "format": "uuid" },
+    "paymentId": { "type": "string", "format": "uuid" },
+    "amount": { "type": "number" }
+  },
+  "examples": [
+    { "orderId": "5b1cd5b9-82e6-49da-b67c-0ae76bec8d0d", "paymentId": "2ba9fbb8-1eaf-43e7-a6c6-ac495a129255", "amount": 3000.00 }
+  ]
+}

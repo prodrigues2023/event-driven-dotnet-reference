@@ -53,6 +53,24 @@ builder.Services.AddEventConsumer<PaymentsDbContext>(c =>
     });
 });
 
+// Command consumer: the saga's compensation. Its own queue (ADR-0002), idempotent (ADR-0004).
+builder.Services.AddEventConsumer<PaymentsDbContext>(c =>
+{
+    c.QueueName = Commands.PaymentsQueue; // "payments.commands" — routed by the default exchange
+    c.On(Commands.RefundPayment, async (ctx, ct) =>
+    {
+        var cmd = ctx.Envelope.Payload<RefundPayment>();
+        ctx.Db.Refunds.Add(new Refund
+        {
+            Id = Guid.NewGuid(), OrderId = cmd.OrderId, PaymentId = cmd.PaymentId,
+            Amount = cmd.Amount, RefundedAt = DateTime.UtcNow
+        });
+        ctx.Outbox.Publish(cmd.OrderId.ToString(), RoutingKeys.PaymentRefunded,
+            new PaymentRefunded(cmd.OrderId, cmd.PaymentId, cmd.Amount), ctx.Envelope);
+        await Task.CompletedTask;
+    });
+});
+
 var app = builder.Build();
 await Startup.MigrateAsync<PaymentsDbContext>(app.Services);
 await app.RunAsync();

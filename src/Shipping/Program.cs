@@ -27,6 +27,16 @@ builder.Services.AddEventConsumer<ShippingDbContext>(c =>
     c.On(RoutingKeys.PaymentAuthorized, async (ctx, ct) =>
     {
         var e = ctx.Envelope.Payload<PaymentAuthorized>();
+
+        // High-value orders have no automatic carrier here — shipping fails as a business outcome,
+        // which triggers the saga to compensate the (already successful) payment.
+        if (e.Amount > 2000m)
+        {
+            ctx.Outbox.Publish(e.OrderId.ToString(), RoutingKeys.ShipmentFailed,
+                new ShipmentFailed(e.OrderId, "no carrier for high-value shipment; manual handling required"), ctx.Envelope);
+            return;
+        }
+
         var shipment = new Shipment
         {
             Id = Guid.NewGuid(),

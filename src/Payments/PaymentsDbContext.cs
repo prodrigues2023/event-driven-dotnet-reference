@@ -12,15 +12,26 @@ public class Payment
     public DateTime ProcessedAt { get; set; }
 }
 
+public class Refund
+{
+    public Guid Id { get; set; }
+    public Guid OrderId { get; set; }
+    public Guid PaymentId { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime RefundedAt { get; set; }
+}
+
 public class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : DbContext(options), IMessagingDbContext
 {
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.Entity<Payment>().ToTable("payments");
+        mb.Entity<Refund>().ToTable("refunds");
         mb.ConfigureMessaging();
     }
 }

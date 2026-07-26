@@ -14,6 +14,7 @@ public class OutboxMessage
     public string AggregateId { get; set; } = "";
     public string Exchange { get; set; } = "";
     public string RoutingKey { get; set; } = "";
+    public string? MessageType { get; set; }   // logical type for commands routed by queue name; null for events
     public string Body { get; set; } = "";    // JSON payload
     public Guid CorrelationId { get; set; }
     public Guid? CausationId { get; set; }

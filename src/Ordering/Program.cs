@@ -22,30 +22,55 @@ builder.Services.AddEventDrivenTelemetry("ordering", aspNetCore: true);
 builder.Services.AddOutboxWriter<OrderingDbContext>();
 builder.Services.AddOutboxDispatcher<OrderingDbContext>();
 
-// Ordering also listens for what happens to its orders downstream, and updates their status.
+// The order-fulfilment saga (ADR-0007): it advances on each event, and on a shipment failure it
+// compensates the completed payment by issuing a RefundPayment command.
 builder.Services.AddEventConsumer<OrderingDbContext>(c =>
 {
     c.QueueName = "ordering.inbox";
-    c.Bind(Exchanges.Payments, "payment.*");
+    c.Bind(Exchanges.Payments, "payment.*");                 // authorized, declined, refunded
     c.Bind(Exchanges.Shipping, RoutingKeys.OrderShipped);
+    c.Bind(Exchanges.Shipping, RoutingKeys.ShipmentFailed);
 
     c.On(RoutingKeys.PaymentAuthorized, async (ctx, ct) =>
     {
         var e = ctx.Envelope.Payload<PaymentAuthorized>();
-        var order = await ctx.Db.Orders.FindAsync([e.OrderId], ct);
-        if (order is { Status: not "Shipped" }) { order.Status = "Paid"; order.PaymentId = e.PaymentId; }
+        var (order, saga) = await Load(ctx.Db, e.OrderId, ct);
+        if (saga is null) return;
+        saga.State = "AwaitingShipment"; saga.PaymentId = e.PaymentId; saga.UpdatedAt = DateTime.UtcNow;
+        if (order is not null) { order.Status = "Paid"; order.PaymentId = e.PaymentId; }
     });
     c.On(RoutingKeys.PaymentDeclined, async (ctx, ct) =>
     {
         var e = ctx.Envelope.Payload<PaymentDeclined>();
-        var order = await ctx.Db.Orders.FindAsync([e.OrderId], ct);
+        var (order, saga) = await Load(ctx.Db, e.OrderId, ct);
+        if (saga is not null) { saga.State = "Cancelled"; saga.UpdatedAt = DateTime.UtcNow; }
         if (order is not null) order.Status = "PaymentFailed";
     });
     c.On(RoutingKeys.OrderShipped, async (ctx, ct) =>
     {
         var e = ctx.Envelope.Payload<OrderShipped>();
-        var order = await ctx.Db.Orders.FindAsync([e.OrderId], ct);
+        var (order, saga) = await Load(ctx.Db, e.OrderId, ct);
+        if (saga is not null) { saga.State = "Completed"; saga.UpdatedAt = DateTime.UtcNow; }
         if (order is not null) { order.Status = "Shipped"; order.ShipmentId = e.ShipmentId; order.TrackingNumber = e.TrackingNumber; }
+    });
+    c.On(RoutingKeys.ShipmentFailed, async (ctx, ct) =>
+    {
+        var e = ctx.Envelope.Payload<ShipmentFailed>();
+        var (order, saga) = await Load(ctx.Db, e.OrderId, ct);
+        if (saga is null || order is null) return;
+        saga.State = "Compensating"; saga.UpdatedAt = DateTime.UtcNow;
+        order.Status = "Compensating";
+        // Compensate the payment that already succeeded — the whole reason the saga exists (ADR-0007).
+        if (saga.PaymentId is { } paymentId)
+            ctx.Outbox.SendCommand(e.OrderId.ToString(), Commands.PaymentsQueue, Commands.RefundPayment,
+                new RefundPayment(e.OrderId, paymentId, order.Amount, e.Reason), ctx.Envelope);
+    });
+    c.On(RoutingKeys.PaymentRefunded, async (ctx, ct) =>
+    {
+        var e = ctx.Envelope.Payload<PaymentRefunded>();
+        var (order, saga) = await Load(ctx.Db, e.OrderId, ct);
+        if (saga is not null) { saga.State = "Compensated"; saga.UpdatedAt = DateTime.UtcNow; }
+        if (order is not null) order.Status = "Cancelled";
     });
 });
 
@@ -96,6 +121,7 @@ app.MapPost("/orders", async (PlaceOrder req, OrderingDbContext db, OutboxWriter
 
     var order = new Order { Id = Guid.NewGuid(), Customer = req.Customer, Amount = req.Amount, Status = "Placed", PlacedAt = DateTime.UtcNow };
     db.Orders.Add(order);
+    db.Sagas.Add(new OrderSaga { OrderId = order.Id, State = "AwaitingPayment", UpdatedAt = DateTime.UtcNow });
     // The event is written to the outbox in the SAME transaction as the order (ADR-0003).
     outbox.Publish(order.Id.ToString(), RoutingKeys.OrderPlaced,
         new OrderPlaced(order.Id, order.Customer, order.Amount, order.PlacedAt));
@@ -129,5 +155,8 @@ static object ToDto(Order o) => new
 {
     o.Id, o.Customer, o.Amount, o.Status, o.PlacedAt, o.PaymentId, o.ShipmentId, o.TrackingNumber
 };
+
+static async Task<(Order? Order, OrderSaga? Saga)> Load(OrderingDbContext db, Guid orderId, CancellationToken ct)
+    => (await db.Orders.FindAsync([orderId], ct), await db.Sagas.FindAsync([orderId], ct));
 
 record PlaceOrder(string Customer, decimal Amount);

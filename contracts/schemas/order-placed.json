@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prodrigues2023.github.io/event-driven-dotnet-reference/schemas/order-placed.json",
+  "title": "OrderPlaced",
+  "description": "A customer placed an order. Published by Ordering to ordering.events with routing key order.placed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["orderId", "customer", "amount", "placedAt"],
+  "properties": {
+    "orderId": { "type": "string", "format": "uuid" },
+    "customer": { "type": "string", "minLength": 1 },
+    "amount": { "type": "number", "description": "Order total; ≤ 0 is treated as a poison message." },
+    "placedAt": { "type": "string", "format": "date-time" }
+  },
+  "examples": [
+    { "orderId": "8be22800-615b-4cda-b787-1d7bb4a669b9", "customer": "Ana Silva", "amount": 250.00, "placedAt": "2026-07-26T20:54:19.217466Z" }
+  ]
+}

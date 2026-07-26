@@ -3,8 +3,8 @@
 > Reliable messaging between services in .NET — the outbox, idempotent consumers, retry and
 > dead-lettering, and sagas. Documented first, implemented in the open.
 
-[![Phase](https://img.shields.io/badge/phase-1%20architecture-blue)](./ROADMAP.md)
-[![ADRs](https://img.shields.io/badge/ADRs-5-green)](./docs/adr)
+[![Phase](https://img.shields.io/badge/phase-4%20operations-blue)](./ROADMAP.md)
+[![ADRs](https://img.shields.io/badge/ADRs-7-green)](./docs/adr)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](./LICENSE)
 
 Publishing a message from .NET takes five lines. Publishing it *reliably* — so that it is
@@ -26,9 +26,11 @@ reference implementation on top of them.
 | --- | --- | --- |
 | Context & scope | Done | [docs/context.md](./docs/context.md) |
 | C4 diagrams and message flows | Done | [docs/diagrams](./docs/diagrams) |
-| Architecture Decision Records | 5 published | [docs/adr](./docs/adr) |
+| Architecture Decision Records | 7 published | [docs/adr](./docs/adr) |
 | Quality attributes & trade-offs | Done | [docs/quality-attributes.md](./docs/quality-attributes.md) |
+| Contracts (envelope, catalogue, schemas) | Done — Phase 2 | [message-contract](./docs/message-contract.md) · [catalogue](./docs/event-catalogue.md) · [schemas](./contracts/schemas) |
 | Reliability spine (outbox, inbox, retry/DLQ) | Done — Phase 3 | [Run it locally](#run-it-locally) · [src](./src) |
+| Order-fulfilment saga & compensation | Done — Phase 3 | [The saga](#the-saga-and-compensation) · [ADR-0007](./docs/adr/0007-saga-vs-process-manager.md) |
 | Resilience & operations (chaos, tracing, load) | Done — Phase 4 | [Resilience](#resilience-under-failure) · [Observability](#observability-and-performance) · [runbooks](./docs/runbooks.md) |
 
 ## The four problems this architecture solves
@@ -55,30 +57,53 @@ make down      # stop everything
 
 Open **[localhost:8080](http://localhost:8080)** for a live console: place an order and watch it move
 across the three services, with each service's queue depth and dead-letter count read live from the
-broker. Below — a shipped order, two declines, and a malformed order dead-lettered (Payments `DLQ 1`).
+broker. Below — a shipped order, declines, a **saga-compensated** order (paid, shipping failed,
+refunded → Cancelled), and a malformed order dead-lettered (Payments `DLQ 1`).
 
 ![The event-driven console — the Ordering → Payments → Shipping flow, per-order stage trackers, and live queue/DLQ depths](./docs/images/console-order-flow.png)
 
-`make demo` exercises the reliability spine end to end:
+`make demo` exercises the whole system end to end:
 
 - an order flows **Placed → Paid → Shipped** across three services, carried only by events;
 - an over-limit order ends **PaymentFailed** — a business decline, published as an event, not a failure;
+- a high-value order is **paid, then shipping fails, so the saga refunds it** → **Cancelled** (see below);
 - a malformed order is **dead-lettered on the first attempt** (a poison message), and the order is left untouched;
 - **replaying** the same message — its stable `MessageId` re-dispatched — is **deduplicated by the inbox**, so the effect happens exactly once.
 
 | Project | Role |
 | --- | --- |
-| [`Ordering`](./src/Ordering) | API + live console. Writes the order and `OrderPlaced` in one transaction (the outbox), and tracks status |
-| [`Payments`](./src/Payments) | Idempotent consumer. Authorizes or declines; a malformed order is a poison message |
-| [`Shipping`](./src/Shipping) | Idempotent consumer. Ships an authorized order and emits `OrderShipped` |
-| [`EventDriven.Messaging`](./src/EventDriven.Messaging) | The reusable spine: outbox dispatcher, inbox dedup, topology, three-layer retry / DLQ |
+| [`Ordering`](./src/Ordering) | API + live console + the fulfilment **saga**. Writes the order and `OrderPlaced` in one transaction (the outbox), and drives compensation |
+| [`Payments`](./src/Payments) | Idempotent consumer. Authorizes or declines; handles the `RefundPayment` command; a malformed order is a poison message |
+| [`Shipping`](./src/Shipping) | Idempotent consumer. Ships an authorized order, or emits `ShipmentFailed` for a high-value one |
+| [`EventDriven.Messaging`](./src/EventDriven.Messaging) | The reusable spine: outbox dispatcher, inbox dedup, topology, three-layer retry / DLQ, events **and commands** |
 
 No framework hides the pattern — the outbox, inbox, and retry ladder are written against
 `RabbitMQ.Client` directly, on purpose: this repository teaches the mechanism rather than delegating
 it. The RabbitMQ management UI is at [localhost:15672](http://localhost:15672) (guest / guest).
 
-Deferred to keep this first cut coherent: the **saga host with compensation** (it depends on
-ADR-0007, a Milestone 2 decision).
+## The saga and compensation
+
+The happy path is choreographed — services react to events, no service calls another. But compensation
+needs a coordinator: when shipping fails *after* payment succeeded, someone has to remember the payment
+and refund it. That someone is the **order-fulfilment saga** ([ADR-0007](./docs/adr/0007-saga-vs-process-manager.md)),
+a state machine that lives in Ordering, advances on each event, and on a shipment failure issues a
+**`RefundPayment` command** to Payments:
+
+```
+OrderPlaced ─▶ PaymentAuthorized ─▶ ShipmentFailed ─▶ [saga] RefundPayment ─▶ PaymentRefunded ─▶ Cancelled
+```
+
+Compensation is a **command**, not an event ([ADR-0002](./docs/adr/0002-messaging-topology.md)) — a
+directed instruction to one handler — and it rides the same outbox and idempotent inbox, so a refund
+happens exactly once. The full state machine is in
+[docs/diagrams/saga-order-fulfilment.md](./docs/diagrams/saga-order-fulfilment.md); the message
+envelope, event catalogue, and JSON Schemas are the **contracts** in
+[docs/message-contract.md](./docs/message-contract.md), [docs/event-catalogue.md](./docs/event-catalogue.md),
+and [contracts/schemas](./contracts/schemas).
+
+The one honest gap: the saga has **no timeout** yet — a fulfilment stuck awaiting an event that never
+comes waits forever. That scheduler is called out in [ADR-0007](./docs/adr/0007-saga-vs-process-manager.md)
+and the [failure catalogue](./docs/failure-catalogue.md).
 
 ## Resilience under failure
 

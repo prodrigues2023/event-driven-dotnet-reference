@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prodrigues2023.github.io/event-driven-dotnet-reference/schemas/shipment-failed.json",
+  "title": "ShipmentFailed",
+  "description": "An order could not be shipped (a business failure that triggers saga compensation). Published by Shipping to shipping.events with routing key shipment.failed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["orderId", "reason"],
+  "properties": {
+    "orderId": { "type": "string", "format": "uuid" },
+    "reason": { "type": "string", "minLength": 1 }
+  },
+  "examples": [
+    { "orderId": "5b1cd5b9-82e6-49da-b67c-0ae76bec8d0d", "reason": "no carrier for high-value shipment; manual handling required" }
+  ]
+}

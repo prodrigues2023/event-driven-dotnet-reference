@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prodrigues2023.github.io/event-driven-dotnet-reference/schemas/order-shipped.json",
+  "title": "OrderShipped",
+  "description": "An order was shipped. Published by Shipping to shipping.events with routing key order.shipped.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["orderId", "shipmentId", "trackingNumber"],
+  "properties": {
+    "orderId": { "type": "string", "format": "uuid" },
+    "shipmentId": { "type": "string", "format": "uuid" },
+    "trackingNumber": { "type": "string", "minLength": 1 }
+  },
+  "examples": [
+    { "orderId": "8be22800-615b-4cda-b787-1d7bb4a669b9", "shipmentId": "cf901fed-d4e1-485a-a45a-2900e9b10b2b", "trackingNumber": "TRK-A62F610AF9" }
+  ]
+}

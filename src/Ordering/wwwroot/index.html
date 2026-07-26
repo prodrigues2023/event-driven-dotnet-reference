@@ -81,6 +81,8 @@
   .s-Paid{background:hsl(var(--muted));color:hsl(var(--fg))}
   .s-Shipped{background:hsl(var(--green-bg));color:hsl(var(--green))}
   .s-PaymentFailed{background:hsl(var(--red-bg));color:hsl(var(--red))}
+  .s-Compensating{background:hsl(var(--amber-bg));color:hsl(var(--amber))}
+  .s-Cancelled{background:hsl(var(--muted));color:hsl(var(--mfg))}
   .poison{background:hsl(var(--red-bg));color:hsl(var(--red))}
   .empty{padding:34px;text-align:center;color:hsl(var(--mfg));font-size:13px}
   footer{margin-top:22px;font-size:12px;color:hsl(var(--mfg))}
@@ -100,13 +102,14 @@
 
   <div class="card" style="margin-bottom:14px">
     <div class="chd"><div class="t">Place an order</div>
-      <div class="s"><code>amount ≤ 0</code> → poison (dead-lettered) · <code>&gt; 5000</code> → declined · otherwise authorized &amp; shipped</div></div>
+      <div class="s"><code>≤ 0</code> poison · <code>&gt; 5000</code> declined · <code>2001–5000</code> ships, fails → refunded (saga compensates) · else shipped</div></div>
     <form id="form">
       <input id="cust" placeholder="Customer name" autocomplete="off" value="Ana Silva">
       <input id="amt" type="number" step="0.01" placeholder="Amount" value="250">
       <button class="btn" type="submit">Place order</button>
       <span class="quick">
         <button class="btn ghost xs" type="button" data-amt="250">happy 250</button>
+        <button class="btn ghost xs" type="button" data-amt="3000">compensate 3000</button>
         <button class="btn ghost xs" type="button" data-amt="9000">decline 9000</button>
         <button class="btn ghost xs" type="button" data-amt="0">poison 0</button>
       </span>
@@ -172,6 +175,7 @@ function tracker(o){
   if(o.status==='Paid'){paid='done';ship='now';}
   else if(o.status==='Shipped'){paid='done';ship='done';}
   else if(o.status==='PaymentFailed'){paid='fail';ship='todo';}
+  else if(o.status==='Compensating'||o.status==='Cancelled'){paid='done';ship='fail';}
   else {paid=poison?'fail':'now';} // Placed
   const seg1=paid==='done'?'seg done':'seg', seg2=ship==='done'?'seg done':'seg';
   return `<div class="track">${step('Placed',placed)}<div class="${seg1}"></div>${step('Paid',paid)}<div class="${seg2}"></div>${step('Shipped',ship)}</div>`;

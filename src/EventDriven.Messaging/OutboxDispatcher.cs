@@ -69,7 +69,7 @@ public sealed class OutboxDispatcher<TContext>(
         {
             var parent = m.TraceParent is not null && ActivityContext.TryParse(m.TraceParent, null, out var pc)
                 ? pc : default;
-            using var act = Telemetry.Source.StartActivity($"publish {m.RoutingKey}", ActivityKind.Producer, parent);
+            using var act = Telemetry.Source.StartActivity($"publish {m.MessageType ?? m.RoutingKey}", ActivityKind.Producer, parent);
             act?.SetTag("messaging.system", "rabbitmq");
             act?.SetTag("messaging.destination.name", m.Exchange);
             act?.SetTag("messaging.message.id", m.Id.ToString());
@@ -82,7 +82,7 @@ public sealed class OutboxDispatcher<TContext>(
                 Persistent = true,
                 MessageId = m.Id.ToString(),
                 CorrelationId = m.CorrelationId.ToString(),
-                Type = m.RoutingKey,
+                Type = m.MessageType ?? m.RoutingKey,
                 ContentType = "application/json",
                 Headers = new Dictionary<string, object?>
                 {

@@ -29,14 +29,19 @@ say "2. Business decline — order for 9000.00 (over the authorization limit)"
 OID2=$(place '{"customer":"Big Corp","amount":9000.00}' | field id); echo "   order $OID2"
 poll "$OID2" "PaymentFailed"
 
-say "3. Poison message — order for 0 (malformed): dead-lettered, order stays Placed"
+say "3. Saga compensation — order for 3000: paid, but shipping fails, so the payment is refunded"
+OIDC=$(place '{"customer":"Remote Depot","amount":3000.00}' | field id); echo "   order $OIDC"
+poll "$OIDC" "Cancelled"
+echo "   the saga issued a RefundPayment command; order ends Cancelled (refunded)"
+
+say "4. Poison message — order for 0 (malformed): dead-lettered, order stays Placed"
 BEFORE=$(dlq_count || echo 0)
 OID3=$(place '{"customer":"Broken Order","amount":0}' | field id); echo "   order $OID3"
-sleep 5
+AFTER=$BEFORE; for _ in $(seq 1 20); do AFTER=$(dlq_count); [ "$AFTER" -gt "$BEFORE" ] && break; sleep 1; done
 echo "   order $OID3 status: $(status "$OID3")  (expected: Placed — payment never happened)"
-echo "   payments DLQ depth: $(dlq_count) (was $BEFORE)"
+echo "   payments DLQ depth: $AFTER (was $BEFORE)"
 
-say "4. Replay the happy order — same MessageId re-dispatched, deduplicated by the inbox"
+say "5. Replay the happy order — same MessageId re-dispatched, deduplicated by the inbox"
 curl -sf -X POST "$API/orders/$OID/replay"; echo
 sleep 3
 echo "   watch the payments log for 'Duplicate ... already processed — skipping'"

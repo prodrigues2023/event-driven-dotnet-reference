@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prodrigues2023.github.io/event-driven-dotnet-reference/schemas/payment-declined.json",
+  "title": "PaymentDeclined",
+  "description": "A payment was declined for an order (a business outcome, not a failure). Published by Payments to payments.events with routing key payment.declined.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["orderId", "reason"],
+  "properties": {
+    "orderId": { "type": "string", "format": "uuid" },
+    "reason": { "type": "string", "minLength": 1 }
+  },
+  "examples": [
+    { "orderId": "5172d76b-c484-4478-9bac-620fdfdd1d04", "reason": "amount exceeds the authorization limit" }
+  ]
+}

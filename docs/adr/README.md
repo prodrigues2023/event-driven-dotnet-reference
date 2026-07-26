@@ -10,8 +10,8 @@ See [ADR-0001](./0001-record-architecture-decisions.md) for the process itself.
 | [0003](./0003-transactional-outbox.md) | Transactional outbox | Accepted |
 | [0004](./0004-idempotent-consumers.md) | Idempotent consumers | Accepted |
 | [0005](./0005-retry-and-dead-lettering.md) | Retry and dead-lettering | Accepted |
-| 0006 | Schema versioning and compatibility | Planned — Milestone 2 |
-| 0007 | Saga vs. process manager | Planned — Milestone 2 |
+| [0006](./0006-schema-versioning.md) | Schema versioning and backward compatibility | Accepted |
+| [0007](./0007-saga-vs-process-manager.md) | Saga vs. process manager, and where state lives | Accepted |
 
 ## How the accepted decisions fit together
 

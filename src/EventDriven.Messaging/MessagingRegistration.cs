@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace EventDriven.Messaging;
@@ -31,15 +33,20 @@ public static class MessagingRegistration
         return services;
     }
 
-    /// <summary>Runs an idempotent consumer with the three-layer retry strategy (ADR-0004, ADR-0005).</summary>
+    /// <summary>Runs an idempotent consumer with the three-layer retry strategy (ADR-0004, ADR-0005).
+    /// May be called more than once per context (e.g. an events queue and a commands queue).</summary>
     public static IServiceCollection AddEventConsumer<TContext>(
         this IServiceCollection services, Action<EventConsumerOptions<TContext>> configure)
         where TContext : DbContext, IMessagingDbContext
     {
         var options = new EventConsumerOptions<TContext>();
         configure(options);
-        services.AddSingleton(options);
-        services.AddHostedService<ConsumerHost<TContext>>();
+        services.AddSingleton<IHostedService>(sp => new ConsumerHost<TContext>(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<RabbitConnection>(),
+            options,
+            sp.GetRequiredService<IOptions<MessagingOptions>>(),
+            sp.GetRequiredService<ILogger<ConsumerHost<TContext>>>()));
         return services;
     }
 }

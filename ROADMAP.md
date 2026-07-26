@@ -34,16 +34,17 @@ and justified by an ADR.
 **Goal:** the system is fully specified. Two teams could implement either side independently
 and interoperate.
 
-| Issue | Deliverable |
-| --- | --- |
-| Message contract standard | Envelope, required headers, correlation and causation ids |
-| Event catalogue | Every event, its schema, its producer, its consumers |
-| ADR-0006 | Schema versioning and backward compatibility policy |
-| ADR-0007 | Saga vs. process manager, and where state lives |
-| Saga definitions | State machines with compensation steps, as diagrams |
-| Failure catalogue | Every failure mode, its detection, and its response |
+| Issue | Deliverable | Status |
+| --- | --- | --- |
+| Message contract standard | Envelope, required headers, correlation and causation ids | Done — [message-contract.md](./docs/message-contract.md) |
+| Event catalogue | Every event, its schema, its producer, its consumers | Done — [event-catalogue.md](./docs/event-catalogue.md) |
+| ADR-0006 | Schema versioning and backward compatibility policy | Done — [ADR-0006](./docs/adr/0006-schema-versioning.md) |
+| ADR-0007 | Saga vs. process manager, and where state lives | Done — [ADR-0007](./docs/adr/0007-saga-vs-process-manager.md) |
+| Saga definitions | State machines with compensation steps, as diagrams | Done — [saga diagram](./docs/diagrams/saga-order-fulfilment.md) |
+| Failure catalogue | Every failure mode, its detection, and its response | Done — [failure-catalogue.md](./docs/failure-catalogue.md) |
 
-**Exit criteria:** every event has a JSON Schema with an example payload, and a named owner.
+**Exit criteria:** every event has a JSON Schema with an example payload, and a named owner. **Met** —
+[contracts/schemas](./contracts/schemas), owners in the [catalogue](./docs/event-catalogue.md).
 
 ---
 
@@ -58,7 +59,7 @@ and interoperate.
 | Payment and shipping consumers | Idempotent handlers with an inbox | Done — [`Payments`](./src/Payments), [`Shipping`](./src/Shipping) |
 | Retry and dead-lettering | Three-layer strategy, delay queues, DLQ | Done — [`ConsumerHost`](./src/EventDriven.Messaging/ConsumerHost.cs) |
 | Local environment | Docker Compose: services, RabbitMQ, PostgreSQL | Done — `make up` |
-| Saga host | Order fulfilment saga with compensation | Deferred — needs ADR-0007 (Milestone 2) |
+| Saga host | Order fulfilment saga with compensation | Done — [ADR-0007](./docs/adr/0007-saga-vs-process-manager.md), refund-on-shipping-failure |
 | CI | Build, analysers, unit and integration tests on every pull request | Deferred — Milestone 4 |
 | Integration tests | Testcontainers against a real broker, not a mock | Deferred — Milestone 4 |
 
